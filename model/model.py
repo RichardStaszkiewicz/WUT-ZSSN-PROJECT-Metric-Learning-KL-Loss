@@ -6,9 +6,9 @@ from .resnet import ResNet
 from .mlp import MLP
 
 
-def random_class_pairs():
+def random_class_pairs(embeds: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     # TODO
-    pass
+    return torch.tensor([0])
 
 
 class KLLossMetricLearning(pl.LightningModule):
@@ -43,12 +43,14 @@ class KLLossMetricLearning(pl.LightningModule):
         labels = batch[self.class_key]
         embeds = self(imgs)
         loss = self.batch_handler(embeds, labels)
-        # TODO
         return loss
 
     def validation_step(self, batch, batch_idx) -> STEP_OUTPUT | None:
-        # TODO
-        pass
+        imgs = batch[self.img_key]
+        labels = batch[self.class_key]
+        embeds = self(imgs)
+        loss = self.batch_handler(embeds, labels)
+        return loss
 
     def forward(self, imgs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         out = self.resnet(imgs)
@@ -58,8 +60,11 @@ class KLLossMetricLearning(pl.LightningModule):
         return mean, std
 
     def test_step(self, batch, batch_idx) -> STEP_OUTPUT | None:
-        # TODO
-        pass
+        imgs = batch[self.img_key]
+        labels = batch[self.class_key]
+        embeds = self(imgs)
+        loss = self.batch_handler(embeds, labels)
+        return loss
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         optim = torch.optim.AdamW(self.parameters(), lr=self.lr)
