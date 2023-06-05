@@ -6,6 +6,43 @@ from .resnet import ResNet
 from .mlp import MLP
 
 
+def KL_d(emb1: tuple[torch.Tensor, torch.Tensor],
+         emb2: tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
+    m1, s1 = emb1
+    m2, s2 = emb2
+    return (
+        ((2 * s1).exp() + (m1 - m2).pow(2)) * 0.5 * (-2 * s2) +
+        ((2 * s2).exp() + (m1 - m2).pow(2)) * 0.5 * (-2 * s1).exp() - 1
+    ).sum(dim=1)
+
+
+def KL_dreg(emb1: tuple[torch.Tensor, torch.Tensor],
+            emb2: tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
+    m1, s1 = emb1
+    m2, s2 = emb2
+    return (
+        ((2 * s1).exp() + m1.pow(2)) * 0.5 +
+        (1 * m1.pow(2)) * 0.5 * (-2 * s1).exp() - 1 +
+        ((2 * s2).exp() + m2.pow(2)) * 0.5 +
+        (1 + m2.pow(2)) * 0.5 * (-2 * s2).exp() - 1
+    ).sum(dim=1)
+
+
+def loss_same_class(emb1: tuple[torch.Tensor, torch.Tensor],
+                    emb2: tuple[torch.Tensor, torch.Tensor],
+                    alpha: float,
+                    m: float) -> torch.Tensor:
+    return (KL_d(emb1, emb2) + alpha * KL_dreg(emb1, emb2)).mean()
+
+
+def loss_different_class(emb1: tuple[torch.Tensor, torch.Tensor],
+                         emb2: tuple[torch.Tensor, torch.Tensor],
+                         alpha: float,
+                         m: float) -> torch.Tensor:
+    return (torch.max(m - KL_d(emb1, emb2), torch.zeros(emb1[0].shape[0], device=emb1[0].device)) +
+            alpha * KL_dreg(emb1, emb2)).mean()
+
+
 def random_class_pairs(embeds: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     # TODO
     return torch.tensor([0])
