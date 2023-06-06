@@ -9,6 +9,7 @@ from torchvision.datasets import ImageFolder
 import opendatasets as od
 from PIL import Image
 import numpy as np
+from matplotlib import pyplot as plt
 
 
 class Cub2011(VisionDataset):
@@ -162,6 +163,7 @@ class CUB():
                 # image.save(img_path.replace('.jpg', '_rgb.jpg'))
                 self.img_name_list[i] = img_name.replace('.jpg', '_rgb.jpg')
 
+
 def download_cub(dir, train=True, download=True, transforms=ToTensor(), split_ratio=0.9, random_seed=10):
     if download:
         dataset_url = 'https://www.kaggle.com/datasets/wenewone/cub2002011'
@@ -174,7 +176,6 @@ def download_cub(dir, train=True, download=True, transforms=ToTensor(), split_ra
     else:
        return CUB('data/cub2002011/CUB_200_2011', 'valid', split_ratio, random_seed, transform = transforms)
 
-from matplotlib import pyplot as plt
 
 def imshow(image, label, ax=None, normalize=True):
     """show single along with label on an ax"""

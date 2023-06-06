@@ -61,7 +61,7 @@ def loss_different_class(emb1: tuple,
 
 def random_class_pairs(embeds: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     # strategy - iterate through batch. Match two consecutive results.
-    loss = 0
+    loss = torch.tensor(0, dtype=float, device=embeds[0][0].device)
     for i in range(len(embeds)):
         j = (i + 1) % len(embeds)
         if labels[i] == labels[j]:
@@ -106,6 +106,12 @@ class KLLossMetricLearning(pl.LightningModule):
         labels = batch[self.class_key]
         embeds = self(imgs)
         loss = self.batch_handler(embeds, labels)
+
+        loss_dict = {"train/loss": loss}
+        self.log_dict(loss_dict, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log("global_step", self.global_step,
+                 prog_bar=True, logger=True, on_step=True, on_epoch=False)
+
         return loss
 
     def validation_step(self, batch, batch_idx) -> STEP_OUTPUT:
@@ -113,6 +119,10 @@ class KLLossMetricLearning(pl.LightningModule):
         labels = batch[self.class_key]
         embeds = self(imgs)
         loss = self.batch_handler(embeds, labels)
+
+        loss_dict = {"val/loss": loss}
+        self.log_dict(loss_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+
         return loss
 
     def forward(self, imgs: torch.Tensor) -> tuple:
@@ -135,6 +145,3 @@ class KLLossMetricLearning(pl.LightningModule):
     def configure_optimizers(self) -> torch.optim.Optimizer:
         optim = torch.optim.AdamW(self.parameters(), lr=self.lr)
         return optim
-
-if __name__ == "__main__":
-    pass
