@@ -15,9 +15,9 @@ def KL_d(emb1: tuple,
     m1, s1 = emb1
     m2, s2 = emb2
     return (
-        ((2 * s1).exp() + (m1 - m2).pow(2)) * 0.5 * (-2 * s2) +
+        ((2 * s1).exp() + (m1 - m2).pow(2)) * 0.5 * (-2 * s2).exp() +
         ((2 * s2).exp() + (m1 - m2).pow(2)) * 0.5 * (-2 * s1).exp() - 1
-    ).sum(dim=1)
+    ).sum()
 
 
 def KL_dreg(emb1: tuple,
@@ -30,10 +30,10 @@ def KL_dreg(emb1: tuple,
     m2, s2 = emb2
     return (
         ((2 * s1).exp() + m1.pow(2)) * 0.5 +
-        (1 * m1.pow(2)) * 0.5 * (-2 * s1).exp() - 1 +
+        (1 + m1.pow(2)) * 0.5 * (-2 * s1).exp() - 1 +
         ((2 * s2).exp() + m2.pow(2)) * 0.5 +
         (1 + m2.pow(2)) * 0.5 * (-2 * s2).exp() - 1
-    ).sum(dim=1)
+    ).sum()
 
 
 def loss_same_class(emb1: tuple,
@@ -44,7 +44,7 @@ def loss_same_class(emb1: tuple,
     emb1 -> tuple[torch.Tensor, torch.Tensor]
     emb2 -> tuple[torch.Tensor, torch.Tensor]
     """
-    return (KL_d(emb1, emb2) + alpha * KL_dreg(emb1, emb2)).mean()
+    return (KL_d(emb1, emb2) + alpha * KL_dreg(emb1, emb2))
 
 
 def loss_different_class(emb1: tuple,
@@ -55,13 +55,20 @@ def loss_different_class(emb1: tuple,
     emb1 -> tuple[torch.Tensor, torch.Tensor]
     emb2 -> tuple[torch.Tensor, torch.Tensor]
     """
-    return (torch.max(m - KL_d(emb1, emb2), torch.zeros(emb1[0].shape[0], device=emb1[0].device))  +
-            alpha * KL_dreg(emb1, emb2)).mean()
+    x = alpha * KL_dreg(emb1, emb2)
+    return (torch.max(m - KL_d(emb1, emb2), torch.zeros_like(x)) + x)
 
 
 def random_class_pairs(embeds: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-    # TODO
-    return torch.tensor([0])
+    # strategy - iterate through batch. Match two consecutive results.
+    loss = 0
+    for i in range(len(embeds)):
+        j = (i + 1) % len(embeds)
+        if labels[i] == labels[j]:
+            loss += loss_same_class((embeds[i].T[0], embeds[i].T[1]), (embeds[j].T[0], embeds[j].T[1]), 0.5, 0.5)
+        else:
+            loss += loss_different_class((embeds[i].T[0], embeds[i].T[1]), (embeds[j].T[0], embeds[j].T[1]), 0.5, 0.5)
+    return loss
 
 
 class KLLossMetricLearning(pl.LightningModule):
@@ -128,3 +135,6 @@ class KLLossMetricLearning(pl.LightningModule):
     def configure_optimizers(self) -> torch.optim.Optimizer:
         optim = torch.optim.AdamW(self.parameters(), lr=self.lr)
         return optim
+
+if __name__ == "__main__":
+    pass
