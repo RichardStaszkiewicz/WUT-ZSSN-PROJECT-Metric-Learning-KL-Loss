@@ -1,7 +1,4 @@
 import os
-import torch
-import torchvision
-import tarfile
 import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
@@ -16,7 +13,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import opendatasets as od
 from torch.utils.data import Dataset
-import shutil
 matplotlib.rcParams['figure.facecolor'] = '#ffffff'
 
 def find_classes(dir, train=True):
@@ -41,10 +37,7 @@ def download_cars(dir, train, download, transforms=ToTensor()):
 
     if download: #and not os.path.isdir(os.path.join(dir, 'stanford-car-dataset-by-classes-folder')):
         dataset_url = 'https://www.kaggle.com/jutrera/stanford-car-dataset-by-classes-folder'
-        # current = os.getcwd()
-        # os.chdir(dir)
         od.download(dataset_url, data_dir=dir)
-        # os.chdir(current)
     else:
        print(f'folder already exits in given location: {os.path.join(dir, "stanford-car-dataset-by-classes-folder")}')
 
