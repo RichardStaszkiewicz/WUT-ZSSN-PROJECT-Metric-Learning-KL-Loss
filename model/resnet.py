@@ -3,12 +3,15 @@ import torch.nn as nn
 
 
 class ResBlock(nn.Module):
+    """
+    kernel_size -> tuple[int, int] | int = 3
+    """
     def __init__(self,
                  in_channels: int,
                  out_channels: int,
-                 kernel_size: tuple[int, int] | int = 3,
+                 kernel_size: int = 3,
                  stride: int = 1,
-                 padding: int | str = "same") -> None:
+                 padding: str = "same" ) -> None:
         super().__init__()
         self.conv1 = nn.Conv2d(
             in_channels=in_channels,
@@ -26,7 +29,7 @@ class ResBlock(nn.Module):
             padding=padding
         )
         self.bn2 = nn.BatchNorm2d(out_channels)
-        self.downsample: None | nn.Module = None
+        self.downsample: nn.Module = None
         if stride != 0:
             self.downsample = nn.Sequential(
                 nn.Conv2d(
@@ -50,7 +53,10 @@ class ResBlock(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, first_conv: dict, block_list: list[dict], pool_size: int) -> None:
+    def __init__(self, first_conv: dict, block_list, pool_size: int) -> None:
+        """
+        block_list -> list[dict]
+        """
         super().__init__()
         self.first_conv = nn.Conv2d(**first_conv)
         self.res_blocks = nn.ModuleList([

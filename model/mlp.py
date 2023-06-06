@@ -4,7 +4,10 @@ import torch.nn as nn
 
 
 class SLPBlock(nn.Module):
-    _activation_fun_dict: dict[str, Callable] = {
+    """
+    _activation_fun_dict -> dict[str, callable]
+    """
+    _activation_fun_dict: dict = {
         "relu": nn.functional.relu,
         "tanh": nn.functional.tanh,
         "sigmoid": nn.functional.sigmoid,
@@ -33,7 +36,10 @@ class SLPBlock(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, block_list: list[dict]) -> None:
+    def __init__(self, block_list: list) -> None:
+        """
+        block_list -> list[dict]
+        """
         super().__init__()
         self.blocks = nn.ModuleList([
             SLPBlock(**block_conf) for block_conf in block_list

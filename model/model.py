@@ -6,8 +6,12 @@ from .resnet import ResNet
 from .mlp import MLP
 
 
-def KL_d(emb1: tuple[torch.Tensor, torch.Tensor],
-         emb2: tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
+def KL_d(emb1: tuple,
+         emb2: tuple) -> torch.Tensor:
+    """
+    emb1 -> tuple[torch.Tensor, torch.Tensor]
+    emb2 -> tuple[torch.Tensor, torch.Tensor]
+    """
     m1, s1 = emb1
     m2, s2 = emb2
     return (
@@ -16,8 +20,12 @@ def KL_d(emb1: tuple[torch.Tensor, torch.Tensor],
     ).sum(dim=1)
 
 
-def KL_dreg(emb1: tuple[torch.Tensor, torch.Tensor],
-            emb2: tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
+def KL_dreg(emb1: tuple,
+            emb2: tuple) -> torch.Tensor:
+    """
+    emb1 -> tuple[torch.Tensor, torch.Tensor]
+    emb2 -> tuple[torch.Tensor, torch.Tensor]
+    """
     m1, s1 = emb1
     m2, s2 = emb2
     return (
@@ -28,18 +36,26 @@ def KL_dreg(emb1: tuple[torch.Tensor, torch.Tensor],
     ).sum(dim=1)
 
 
-def loss_same_class(emb1: tuple[torch.Tensor, torch.Tensor],
-                    emb2: tuple[torch.Tensor, torch.Tensor],
+def loss_same_class(emb1: tuple,
+                    emb2: tuple,
                     alpha: float,
                     m: float) -> torch.Tensor:
+    """
+    emb1 -> tuple[torch.Tensor, torch.Tensor]
+    emb2 -> tuple[torch.Tensor, torch.Tensor]
+    """
     return (KL_d(emb1, emb2) + alpha * KL_dreg(emb1, emb2)).mean()
 
 
-def loss_different_class(emb1: tuple[torch.Tensor, torch.Tensor],
-                         emb2: tuple[torch.Tensor, torch.Tensor],
+def loss_different_class(emb1: tuple,
+                         emb2: tuple,
                          alpha: float,
                          m: float) -> torch.Tensor:
-    return (torch.max(m - KL_d(emb1, emb2), torch.zeros(emb1[0].shape[0], device=emb1[0].device)) +
+    """
+    emb1 -> tuple[torch.Tensor, torch.Tensor]
+    emb2 -> tuple[torch.Tensor, torch.Tensor]
+    """
+    return (torch.max(m - KL_d(emb1, emb2), torch.zeros(emb1[0].shape[0], device=emb1[0].device))  +
             alpha * KL_dreg(emb1, emb2)).mean()
 
 
@@ -49,7 +65,10 @@ def random_class_pairs(embeds: torch.Tensor, labels: torch.Tensor) -> torch.Tens
 
 
 class KLLossMetricLearning(pl.LightningModule):
-    _batch_handlers: dict[str, Callable] = {
+    """
+    _batch_handlers -> dict[str, callable]
+    """
+    _batch_handlers: dict = {
         "random_class_pairs": random_class_pairs
     }
 
@@ -82,21 +101,24 @@ class KLLossMetricLearning(pl.LightningModule):
         loss = self.batch_handler(embeds, labels)
         return loss
 
-    def validation_step(self, batch, batch_idx) -> STEP_OUTPUT | None:
+    def validation_step(self, batch, batch_idx) -> STEP_OUTPUT:
         imgs = batch[self.img_key]
         labels = batch[self.class_key]
         embeds = self(imgs)
         loss = self.batch_handler(embeds, labels)
         return loss
 
-    def forward(self, imgs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, imgs: torch.Tensor) -> tuple:
+        """
+        return -> tuple[torch.Tensor, torch.Tensor]
+        """
         out = self.resnet(imgs)
         out = self.mlp(out)
         latent_dim = out.shape[1] // 2
         mean, std = out[:, :latent_dim], out[:, latent_dim:]
         return mean, std
 
-    def test_step(self, batch, batch_idx) -> STEP_OUTPUT | None:
+    def test_step(self, batch, batch_idx) -> STEP_OUTPUT:
         imgs = batch[self.img_key]
         labels = batch[self.class_key]
         embeds = self(imgs)
