@@ -2,8 +2,10 @@ from typing import Any, Callable
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 import torch
 import pytorch_lightning as pl
+import numpy as np
 from .resnet import ResNet
 from .mlp import MLP
+from pytorch_metric_learning import distances
 
 
 def KL_d(emb1: tuple,
@@ -61,6 +63,8 @@ def loss_different_class(emb1: tuple,
 
 def random_class_pairs(embeds: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     # strategy - iterate through batch. Match two consecutive results.
+    # embeds size = [batch size, no. output dims, 2 (for each dim mean and std)]
+    # labels = [batch size]
     loss = torch.tensor(0, dtype=float, device=embeds[0][0].device)
     for i in range(len(embeds)):
         j = (i + 1) % len(embeds)
@@ -69,6 +73,37 @@ def random_class_pairs(embeds: torch.Tensor, labels: torch.Tensor) -> torch.Tens
         else:
             loss += loss_different_class((embeds[i].T[0], embeds[i].T[1]), (embeds[j].T[0], embeds[j].T[1]), 0.5, 0.5)
     return loss
+
+class KLDistance(distances.BaseDistance):
+        def __init__(self, normalize_embeddings=True, p=2, power=1, is_inverted=False, **kwargs):
+            super().__init__(normalize_embeddings, p, power, is_inverted, **kwargs)
+
+        def compute_mat(self, query_emb, ref_emb):
+            # Must return a matrix where mat[j,k] represents
+            # the distance/similarity between query_emb[j] and ref_emb[k]
+            ans = []
+            for j in range(len(query_emb)):
+                a = []
+                for k in range(len(ref_emb)):
+                    a.append(self._dist(query_emb[j], ref_emb[k]))
+                ans.append(a)
+            return torch.Tensor(np.array(ans))
+
+        def pairwise_distance(self, query_emb, ref_emb):
+            # Must return a tensor where output[j] represents
+            # the distance/similarity between query_emb[j] and ref_emb[j]
+            ans = []
+            for i in range(len(query_emb)):
+                ans.append(self._dist(query_emb[i], ref_emb[i]))
+            return torch.Tensor(np.array(ans))
+
+        def _dist(self, emb1, emb2):
+            m1, s1 = (emb1[:len(emb1)//2], emb1[len(emb1)//2:])
+            m2, s2 = (emb2[:len(emb2)//2], emb2[len(emb2)//2:])
+            return (
+                ((2 * s1).exp() + (m1 - m2).pow(2)) * 0.5 * (-2 * s2).exp() +
+                ((2 * s2).exp() + (m1 - m2).pow(2)) * 0.5 * (-2 * s1).exp() - 1
+            ).sum()
 
 
 class KLLossMetricLearning(pl.LightningModule):
