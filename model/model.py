@@ -92,10 +92,15 @@ def pair_margin_miner(embeds: torch.Tensor, labels: torch.Tensor, exp_class_dist
     # labels = [batch size]
     # exp_class_distance = default 1
     # regularization_ratio = default 0.2
-    miner_func = miners.PairMarginMiner(pos_margin=0.2, neg_margin=0.8, distance=KLDistance())
-    loss_func = KLoss(distance=KLDistance())
+    exp_class_distance = exp_class_distance if exp_class_distance else 1
+    regularization_ratio = regularization_ratio if regularization_ratio else 0.2
+
+    miner_func = miners.PairMarginMiner(pos_margin=exp_class_distance, neg_margin=exp_class_distance, distance=KLDistance())
+    loss_func = KLoss(distance=KLDistance(),
+                      exp_class_distance=exp_class_distance,
+                      regularization_ratio=regularization_ratio)
     miner_output = miner_func(embeds, labels)
-    return loss_func(embeds,labels, miner_output)
+    return loss_func(embeds, labels, miner_output)
 
 class KLDistance(distances.BaseDistance):
         def __init__(self, normalize_embeddings=True, p=2, power=1, is_inverted=False, **kwargs):
@@ -129,37 +134,51 @@ class KLDistance(distances.BaseDistance):
             ).sum()
 
 class KLoss(losses.BaseMetricLossFunction):
-    def __init__(self, embedding_regularizer=None, embedding_reg_weight=1, pos_negative_ratio=None, **kwargs):
+    def __init__(self, embedding_regularizer=None, exp_class_distance=None, regularization_ratio=None, embedding_reg_weight=1, pos_negative_ratio=None, **kwargs):
         super().__init__(embedding_regularizer, embedding_reg_weight, **kwargs)
         self.pos_negative_ratio = pos_negative_ratio
+        self.m = exp_class_distance
+        self.alpha = regularization_ratio
 
     def cnt_ratios(self, pos, neg, ratio):
         if not ratio:
             return pos, neg
-        positive_count = pos
-        negative_count = positive_count // ratio
+        negative_count = pos // ratio
+        positive_count = int(negative_count * ratio)
         while negative_count > neg:
             positive_count = positive_count - 1
             negative_count = positive_count // ratio
         return positive_count, negative_count
 
     def compute_loss(self, embeddings, labels, indices_tuple, ref_emb, ref_labels):
-        if self.pos_negative_ratio:
-            positive_count, negative_count = self.cnt_ratios(len(indices_tuple[0]), len(indices_tuple[2]), self.pos_negative_ratio)
-        print("positive count", positive_count, "\nnegative count", negative_count)
-        print(embeddings.shape)
-        print(labels.shape)
-        print(indices_tuple)
-        print(ref_emb)
-        print(ref_labels)
-        raise NotImplementedError
+        positive_count, negative_count = self.cnt_ratios(len(indices_tuple[0]), len(indices_tuple[2]), self.pos_negative_ratio)
+        loss = torch.tensor(0, dtype=float, device=embeddings[0].device)
+        pivot = len(embeddings[0]) // 2
+        for i in range(positive_count):
+            loss += loss_same_class(emb1=(embeddings[indices_tuple[0][i]][:pivot], embeddings[indices_tuple[0][i]][pivot:]),
+                                    emb2=(embeddings[indices_tuple[1][i]][:pivot], embeddings[indices_tuple[1][i]][pivot:]),
+                                    alpha=self.alpha,
+                                    m=self.m)
+        for i in range(negative_count):
+            loss += loss_different_class(emb1=(embeddings[indices_tuple[2][i]][:pivot], embeddings[indices_tuple[2][i]][pivot:]),
+                                    emb2=(embeddings[indices_tuple[3][i]][:pivot], embeddings[indices_tuple[3][i]][pivot:]),
+                                    alpha=self.alpha,
+                                    m=self.m)
+        return {
+            'loss': {
+                'losses': loss,
+                'indices': None,
+                'reduction_type': 'already_reduced'
+                }
+            }
 
 class KLLossMetricLearning(pl.LightningModule):
     """
     _batch_handlers -> dict[str, callable]
     """
     _batch_handlers: dict = {
-        "random_class_pairs": random_class_pairs
+        "random_class_pairs": random_class_pairs,
+        "pair_margin_miner" : pair_margin_miner
     }
 
     def __init__(self,
@@ -180,19 +199,22 @@ class KLLossMetricLearning(pl.LightningModule):
         self.exp_class_distance = exp_class_distance
         self.regularization_ratio = regularization_ratio
         assert batch_handling in self._batch_handlers.keys()
-        self.batch_handling_name = self.batch_handling
+        self.batch_handling_name = batch_handling
         self.batch_handler = self._batch_handlers[batch_handling]
         self.img_key = img_key
         self.class_key = class_key
+
+    def get_embeds(self, means, stds):
+        if self.batch_handling_name == "random_class_pairs":
+            return torch.cat((means.unsqueeze(2), stds.unsqueeze(2)), dim=2)
+        elif self.batch_handling_name == "pair_margin_miner":
+            return torch.cat((means, stds), dim=1)
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         imgs = batch[self.img_key]
         labels = batch[self.class_key]
         means, stds = self(imgs)
-        if self.batch_handling_name == "random_class_pairs":
-            embeds = torch.cat((means.unsqueeze(2), stds.unsqueeze(2)), dim=2)
-        elif self.batch_handling_name == "pair_margin_miner":
-            embeds = torch.cat((means, stds), dim=1)
+        embeds = self.get_embeds(means, stds)
         loss = self.batch_handler(embeds, labels, self.exp_class_distance, self.regularization_ratio)
 
         loss_dict = {"train/loss": loss}
@@ -205,7 +227,8 @@ class KLLossMetricLearning(pl.LightningModule):
     def validation_step(self, batch, batch_idx) -> STEP_OUTPUT:
         imgs = batch[self.img_key]
         labels = batch[self.class_key]
-        embeds = self(imgs)
+        means, stds = self(imgs)
+        embeds = self.get_embeds(means, stds)
         loss = self.batch_handler(embeds, labels)
 
         loss_dict = {"val/loss": loss}
@@ -226,7 +249,9 @@ class KLLossMetricLearning(pl.LightningModule):
     def test_step(self, batch, batch_idx) -> STEP_OUTPUT:
         imgs = batch[self.img_key]
         labels = batch[self.class_key]
-        embeds = self(imgs)
+
+        means, stds = self(imgs)
+        embeds = self.get_embeds(means, stds)
         loss = self.batch_handler(embeds, labels)
         return loss
 

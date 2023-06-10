@@ -33,3 +33,23 @@ class Testcnt_ratio(object):
         pos, neg = md.KLoss().cnt_ratios(100, 100, 10)
         assert(pos, 100)
         assert(neg, 10)
+
+    def test_data_more_then_one_limit(self):
+        pos, neg = md.KLoss().cnt_ratios(2, 6, 4)
+        assert(pos, 0)
+        assert(neg, 0)
+
+    def test_data_more_then_one(self):
+        pos, neg = md.KLoss().cnt_ratios(2, 6, 2.5)
+        assert(pos, 2)
+        assert(neg, 5)
+
+    def test_data_less_then_one(self):
+        pos, neg = md.KLoss().cnt_ratios(2, 6, 0.25)
+        assert(pos, 1)
+        assert(neg, 4)
+
+    def test_data_exact_one(self):
+        pos, neg = md.KLoss().cnt_ratios(2, 6, 1)
+        assert(pos, 2)
+        assert(neg, 2)

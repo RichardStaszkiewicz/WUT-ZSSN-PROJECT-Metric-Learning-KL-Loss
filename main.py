@@ -8,8 +8,8 @@ import torch
 # from datetime import datetime
 # from data_utils import cub2011
 # from data_utils import stanford_cars
-from pytorch_metric_learning import miners
-from model.model import KLDistance, KL_d, KLoss
+from pytorch_metric_learning import miners, losses
+from model.model import KLDistance, KL_d, KLoss, KLLossMetricLearning
 
 
 if __name__ == "__main__":
@@ -99,6 +99,8 @@ if __name__ == "__main__":
     # emb = torch.cat((means.unsqueeze(2), stds.unsqueeze(2)), dim=2)
     # m1, s1 = (emb[0].T[0], emb[0].T[1])
     # m2, s2 = (emb[1].T[0], emb[1].T[1])
+    # print((m1, s1))
+    # print((m2, s2))
     # print(KL_d((m1, s1), (m2, s2)))
     # emb size = [batch size, no. output dims, 2 (for each dim mean and std)]
     # labels = [batch size]
@@ -107,12 +109,6 @@ if __name__ == "__main__":
     miner_func = miners.PairMarginMiner(pos_margin=0.2, neg_margin=0.8, distance=KLDistance())
     emb2 = torch.cat((means, stds), dim=1)
     miner_output = miner_func(emb2, labels)
-    loss_func = KLoss(distance=KLDistance(), pos_negative_ratio=4)
-    print(miner_output)
-    loss_func(emb2, labels, miner_output)
-
-
-    x = torch.cat((means.unsqueeze(2), stds.unsqueeze(2)), dim=2)
-    y = torch.cat((means, stds), dim=1)
-
-    x.squeeze(dim=1)
+    loss_func = KLoss(distance=KLDistance(), exp_class_distance=0.5, regularization_ratio=0.5, pos_negative_ratio=1)
+    print(loss_func.compute_loss(emb2, labels, miner_output, emb2, labels)['loss']['losses'])
+    print(loss_func(emb2, labels, miner_output))
