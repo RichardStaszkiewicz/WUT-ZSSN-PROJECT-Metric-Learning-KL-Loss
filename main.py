@@ -106,8 +106,12 @@ if __name__ == "__main__":
 
     miner_func = miners.PairMarginMiner(pos_margin=0.2, neg_margin=0.8, distance=KLDistance())
     emb2 = torch.cat((means, stds), dim=1)
-    print(KLDistance()._dist(emb2[0], emb2[1])) # emb = [means+stds, means+stds]
-    print(KLDistance().compute_mat(emb2, emb2)) # emb = [batch_size, means+stds]
     print(emb2.shape)
     miner_output = miner_func(emb2, labels)
     print(miner_output)
+
+
+    x = torch.cat((means.unsqueeze(2), stds.unsqueeze(2)), dim=2)
+    y = torch.cat((means, stds), dim=1)
+
+    x.squeeze(dim=1)

@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 import numpy as np
 from .resnet import ResNet
 from .mlp import MLP
-from pytorch_metric_learning import distances
+from pytorch_metric_learning import distances, miners, losses
 
 
 def KL_d(emb1: tuple,
@@ -61,17 +61,39 @@ def loss_different_class(emb1: tuple,
     return (torch.max(m - KL_d(emb1, emb2), torch.zeros_like(x)) + x)
 
 
-def random_class_pairs(embeds: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+def random_class_pairs(embeds: torch.Tensor, labels: torch.Tensor, exp_class_distance: float=None, regularization_ratio: float=None) -> torch.Tensor:
     # strategy - iterate through batch. Match two consecutive results.
     # embeds size = [batch size, no. output dims, 2 (for each dim mean and std)]
     # labels = [batch size]
+    # exp_class_distance = default 1
+    # regularization_ratio = default 0.2
+    exp_class_distance = exp_class_distance if exp_class_distance else 1
+    regularization_ratio = regularization_ratio if regularization_ratio else 0.2
+
     loss = torch.tensor(0, dtype=float, device=embeds[0][0].device)
     for i in range(len(embeds)):
         j = (i + 1) % len(embeds)
         if labels[i] == labels[j]:
-            loss += loss_same_class((embeds[i].T[0], embeds[i].T[1]), (embeds[j].T[0], embeds[j].T[1]), 0.5, 0.5)
+            loss += loss_same_class(
+                emb1 = (embeds[i].T[0], embeds[i].T[1]),
+                emb2 = (embeds[j].T[0], embeds[j].T[1]),
+                alpha=regularization_ratio, m=exp_class_distance)
         else:
-            loss += loss_different_class((embeds[i].T[0], embeds[i].T[1]), (embeds[j].T[0], embeds[j].T[1]), 0.5, 0.5)
+            loss += loss_different_class(
+                emb1 = (embeds[i].T[0], embeds[i].T[1]),
+                emb2 = (embeds[j].T[0], embeds[j].T[1]),
+                alpha=regularization_ratio, m=exp_class_distance)
+    return loss
+
+def pair_margin_miner(embeds: torch.Tensor, labels: torch.Tensor, exp_class_distance: float=None, regularization_ratio: float=None) -> torch.Tensor:
+    # strategy - get only pairs which are not distanced enough
+    # embeds size = [batch size, 2 * output dims (means+std)]
+    # labels = [batch size]
+    # exp_class_distance = default 1
+    # regularization_ratio = default 0.2
+    miner_func = miners.PairMarginMiner(pos_margin=0.2, neg_margin=0.8, distance=KLDistance())
+    miner_output = miner_func(embeds, labels)
+    loss = KLoss(embeds,labels, miner_output)
     return loss
 
 class KLDistance(distances.BaseDistance):
@@ -105,6 +127,12 @@ class KLDistance(distances.BaseDistance):
                 ((2 * s2).exp() + (m1 - m2).pow(2)) * 0.5 * (-2 * s1).exp() - 1
             ).sum()
 
+class KLoss(losses.BaseMetricLossFunction):
+    def __init__(self, embedding_regularizer=None, embedding_reg_weight=1, **kwargs):
+        super().__init__(embedding_regularizer, embedding_reg_weight, **kwargs)
+
+    def compute_loss(self, embeddings, labels, indices_tuple, ref_emb, ref_labels):
+        raise NotImplementedError
 
 class KLLossMetricLearning(pl.LightningModule):
     """
@@ -132,6 +160,7 @@ class KLLossMetricLearning(pl.LightningModule):
         self.exp_class_distance = exp_class_distance
         self.regularization_ratio = regularization_ratio
         assert batch_handling in self._batch_handlers.keys()
+        self.batch_handling_name = self.batch_handling
         self.batch_handler = self._batch_handlers[batch_handling]
         self.img_key = img_key
         self.class_key = class_key
@@ -139,8 +168,12 @@ class KLLossMetricLearning(pl.LightningModule):
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         imgs = batch[self.img_key]
         labels = batch[self.class_key]
-        embeds = self(imgs)
-        loss = self.batch_handler(embeds, labels)
+        means, stds = self(imgs)
+        if self.batch_handling_name == "random_class_pairs":
+            embeds = torch.cat((means.unsqueeze(2), stds.unsqueeze(2)), dim=2)
+        elif self.batch_handling_name == "pair_margin_miner":
+            embeds = torch.cat((means, stds), dim=1)
+        loss = self.batch_handler(embeds, labels, self.exp_class_distance, self.regularization_ratio)
 
         loss_dict = {"train/loss": loss}
         self.log_dict(loss_dict, prog_bar=True, logger=True, on_step=True, on_epoch=True)
