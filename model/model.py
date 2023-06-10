@@ -85,6 +85,7 @@ def random_class_pairs(embeds: torch.Tensor, labels: torch.Tensor, exp_class_dis
                 alpha=regularization_ratio, m=exp_class_distance)
     return loss
 
+
 def pair_margin_miner(embeds: torch.Tensor, labels: torch.Tensor, exp_class_distance: float=None, regularization_ratio: float=None) -> torch.Tensor:
     # strategy - get only pairs which are not distanced enough
     # embeds size = [batch size, 2 * output dims (means+std)]
@@ -92,9 +93,9 @@ def pair_margin_miner(embeds: torch.Tensor, labels: torch.Tensor, exp_class_dist
     # exp_class_distance = default 1
     # regularization_ratio = default 0.2
     miner_func = miners.PairMarginMiner(pos_margin=0.2, neg_margin=0.8, distance=KLDistance())
+    loss_func = KLoss(distance=KLDistance())
     miner_output = miner_func(embeds, labels)
-    loss = KLoss(embeds,labels, miner_output)
-    return loss
+    return loss_func(embeds,labels, miner_output)
 
 class KLDistance(distances.BaseDistance):
         def __init__(self, normalize_embeddings=True, p=2, power=1, is_inverted=False, **kwargs):
@@ -128,10 +129,29 @@ class KLDistance(distances.BaseDistance):
             ).sum()
 
 class KLoss(losses.BaseMetricLossFunction):
-    def __init__(self, embedding_regularizer=None, embedding_reg_weight=1, **kwargs):
+    def __init__(self, embedding_regularizer=None, embedding_reg_weight=1, pos_negative_ratio=None, **kwargs):
         super().__init__(embedding_regularizer, embedding_reg_weight, **kwargs)
+        self.pos_negative_ratio = pos_negative_ratio
+
+    def cnt_ratios(self, pos, neg, ratio):
+        if not ratio:
+            return pos, neg
+        positive_count = pos
+        negative_count = positive_count // ratio
+        while negative_count > neg:
+            positive_count = positive_count - 1
+            negative_count = positive_count // ratio
+        return positive_count, negative_count
 
     def compute_loss(self, embeddings, labels, indices_tuple, ref_emb, ref_labels):
+        if self.pos_negative_ratio:
+            positive_count, negative_count = self.cnt_ratios(len(indices_tuple[0]), len(indices_tuple[2]), self.pos_negative_ratio)
+        print("positive count", positive_count, "\nnegative count", negative_count)
+        print(embeddings.shape)
+        print(labels.shape)
+        print(indices_tuple)
+        print(ref_emb)
+        print(ref_labels)
         raise NotImplementedError
 
 class KLLossMetricLearning(pl.LightningModule):

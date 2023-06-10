@@ -9,7 +9,7 @@ import torch
 # from data_utils import cub2011
 # from data_utils import stanford_cars
 from pytorch_metric_learning import miners
-from model.model import KLDistance, KL_d
+from model.model import KLDistance, KL_d, KLoss
 
 
 if __name__ == "__main__":
@@ -96,19 +96,20 @@ if __name__ == "__main__":
     labels = torch.Tensor(
         [2, 2, 3, 3]
     )
-    emb = torch.cat((means.unsqueeze(2), stds.unsqueeze(2)), dim=2)
-    m1, s1 = (emb[0].T[0], emb[0].T[1])
-    m2, s2 = (emb[1].T[0], emb[1].T[1])
-    print(KL_d((m1, s1), (m2, s2)))
+    # emb = torch.cat((means.unsqueeze(2), stds.unsqueeze(2)), dim=2)
+    # m1, s1 = (emb[0].T[0], emb[0].T[1])
+    # m2, s2 = (emb[1].T[0], emb[1].T[1])
+    # print(KL_d((m1, s1), (m2, s2)))
     # emb size = [batch size, no. output dims, 2 (for each dim mean and std)]
     # labels = [batch size]
 
 
     miner_func = miners.PairMarginMiner(pos_margin=0.2, neg_margin=0.8, distance=KLDistance())
     emb2 = torch.cat((means, stds), dim=1)
-    print(emb2.shape)
     miner_output = miner_func(emb2, labels)
+    loss_func = KLoss(distance=KLDistance(), pos_negative_ratio=4)
     print(miner_output)
+    loss_func(emb2, labels, miner_output)
 
 
     x = torch.cat((means.unsqueeze(2), stds.unsqueeze(2)), dim=2)
