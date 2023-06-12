@@ -81,6 +81,7 @@ if __name__ == "__main__":
     trainer.fit(
         model, train_dataloaders=cub_trainloader, val_dataloaders=cub_testloader
     )
+    trainer.test(model, cub_testloader)
     # means = torch.Tensor([
     #     [3, 0, 3],
     #     [2, 0, 2],

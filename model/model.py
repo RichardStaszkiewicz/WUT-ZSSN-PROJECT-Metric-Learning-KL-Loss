@@ -108,7 +108,8 @@ def precision_at_k(query: list[tuple[torch.Tensor, torch.Tensor]],
 def random_class_pairs(embeds: torch.Tensor,
                        labels: torch.Tensor,
                        exp_class_distance: float | None = None,
-                       regularization_ratio: float | None = None) -> torch.Tensor:
+                       regularization_ratio: float | None = None,
+                       **kwargs) -> torch.Tensor:
     # strategy - iterate through batch. Match two consecutive results.
     # embeds size = [batch size, no. output dims, 2 (for each dim mean and std)]
     # labels = [batch size]
@@ -136,7 +137,9 @@ def random_class_pairs(embeds: torch.Tensor,
 def pair_margin_miner(embeds: torch.Tensor,
                       labels: torch.Tensor,
                       exp_class_distance: float | None = None,
-                      regularization_ratio: float | None = None) -> torch.Tensor:
+                      regularization_ratio: float | None = None,
+                      pos_neg_ratio: Any | None = None,
+                      **kwargs) -> torch.Tensor:
     # strategy - get only pairs which are not distanced enough
     # embeds size = [batch size, 2 * output dims (means+std)]
     # labels = [batch size]
@@ -149,7 +152,8 @@ def pair_margin_miner(embeds: torch.Tensor,
         pos_margin=exp_class_distance, neg_margin=exp_class_distance, distance=KLDistance())
     loss_func = KLoss(distance=KLDistance(),
                       exp_class_distance=exp_class_distance,
-                      regularization_ratio=regularization_ratio)
+                      regularization_ratio=regularization_ratio,
+                      pos_negative_ratio=pos_neg_ratio)
     miner_output = miner_func(embeds.cpu(), labels)
     miner_output = tuple([output.to(labels.device) for output in miner_output])
     return loss_func(embeds, labels, miner_output)
@@ -260,6 +264,7 @@ class KLLossMetricLearning(pl.LightningModule):
                  lr: float,
                  img_key: Any = 0,
                  class_key: Any = 1,
+                 bh_kwargs: dict | None = None,
                  precision_k: list[int] | int = 1,
                  recall_k: list[int] | int = 1,
                  *args: Any,
@@ -274,6 +279,7 @@ class KLLossMetricLearning(pl.LightningModule):
         self.batch_handling_name = batch_handling
         self.batch_handler = self._batch_handlers[batch_handling]
         self.img_key = img_key
+        self.bh_kwargs = bh_kwargs if bh_kwargs is not None else {}
         self.class_key = class_key
         self.precision_k = precision_k
         self.recall_k = recall_k
@@ -282,6 +288,8 @@ class KLLossMetricLearning(pl.LightningModule):
         # self.train_labels = None
         # self.val_emb = None
         # self.val_labels = None
+        self.test_emb = None
+        self.test_labels = None
 
     def get_embeds(self, means, stds):
         if self.batch_handling_name == "random_class_pairs":
@@ -295,7 +303,7 @@ class KLLossMetricLearning(pl.LightningModule):
         means, stds = self(imgs)
         embeds = self.get_embeds(means, stds)
         loss = self.batch_handler(
-            embeds, labels, self.exp_class_distance, self.regularization_ratio)
+            embeds, labels, self.exp_class_distance, self.regularization_ratio, **self.bh_kwargs)
 
         # self.train_emb = torch.cat(
         #     [self.train_emb, embeds], dim=0) if self.train_emb is not None else embeds
@@ -337,7 +345,8 @@ class KLLossMetricLearning(pl.LightningModule):
         labels = batch[self.class_key]
         means, stds = self(imgs)
         embeds = self.get_embeds(means, stds)
-        loss = self.batch_handler(embeds, labels)
+        loss = self.batch_handler(
+            embeds, labels, self.exp_class_distance, self.regularization_ratio, **self.bh_kwargs)
 
         # self.val_emb = torch.cat(
         #     [self.val_emb, embeds], dim=0) if self.val_emb is not None else embeds
@@ -388,11 +397,33 @@ class KLLossMetricLearning(pl.LightningModule):
     def test_step(self, batch, batch_idx) -> STEP_OUTPUT:
         imgs = batch[self.img_key]
         labels = batch[self.class_key]
-
         means, stds = self(imgs)
         embeds = self.get_embeds(means, stds)
-        loss = self.batch_handler(embeds, labels)
-        return loss
+        loss = self.batch_handler(
+            embeds, labels, self.exp_class_distance, self.regularization_ratio, **self.bh_kwargs)
+
+        self.test_emb = torch.cat(
+            [self.test_emb, embeds], dim=0) if self.test_emb is not None else embeds
+        self.test_labels = torch.cat(
+            [self.test_labels, labels], dim=0) if self.test_labels is not None else labels
+
+        loss_dict = {"test/loss": loss}
+        self.log_dict(loss_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+
+    def on_test_epoch_end(self) -> None:
+        if isinstance(self.test_emb, torch.Tensor):
+            hidden = self.test_emb.shape[1] // 2
+            self.test_emb = [(emb[:hidden], emb[hidden:]) for emb in self.test_emb]
+        prec_dict = precision_at_k(self.test_emb, self.test_labels, self.precision_k)
+        log_dict = {f"test/precision@{k}": prec_dict[k] for k in prec_dict.keys()}
+        self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+
+        recall_dict = recall_at_k(self.test_emb, self.test_labels, self.recall_k)
+        log_dict = {f"test/recall@{k}": recall_dict[k] for k in recall_dict.keys()}
+        self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+
+        self.test_emb = None
+        self.test_labels = None
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         optim = torch.optim.AdamW(self.parameters(), lr=self.lr)
