@@ -135,7 +135,7 @@ def random_class_pairs(embeds: torch.Tensor,
 
 def pair_margin_miner(embeds: torch.Tensor,
                       labels: torch.Tensor,
-                                                                                                                                                                    : float | None = None,
+                      exp_class_distance: float | None = None,
                       regularization_ratio: float | None = None) -> torch.Tensor:
     # strategy - get only pairs which are not distanced enough
     # embeds size = [batch size, 2 * output dims (means+std)]
