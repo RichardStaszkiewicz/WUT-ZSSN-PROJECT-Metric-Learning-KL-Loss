@@ -1,7 +1,7 @@
 model:
   exp_class_distance: 1
   regularization_ratio: 0.5
-  batch_handling: "random_class_pairs"
+  batch_handling: "pair_margin_miner"
   resnet_config:
     first_conv:
       in_channels: 3
@@ -88,3 +88,5 @@ model:
   lr: 1.0e-3
   img_key: 0
   class_key: 1
+  precision_k: [2, 4]
+  recall_k: [1, 2, 4]
