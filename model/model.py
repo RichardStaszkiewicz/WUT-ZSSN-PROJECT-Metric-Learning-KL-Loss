@@ -294,10 +294,10 @@ class KLLossMetricLearning(pl.LightningModule):
         self.precision_k = precision_k
         self.recall_k = recall_k
 
-        self.train_emb = None
-        self.train_labels = None
-        self.val_emb = None
-        self.val_labels = None
+        # self.train_emb = None
+        # self.train_labels = None
+        # self.val_emb = None
+        # self.val_labels = None
         self.test_emb = None
         self.test_labels = None
 
@@ -315,23 +315,23 @@ class KLLossMetricLearning(pl.LightningModule):
         loss = self.batch_handler(
             embeds, labels, self.exp_class_distance, self.regularization_ratio, **self.bh_kwargs)
 
-        self.train_emb = torch.cat(
-            [self.train_emb, embeds], dim=0) if self.train_emb is not None else embeds
-        self.train_labels = torch.cat(
-            [self.train_labels, labels], dim=0) if self.train_labels is not None else labels
+        # self.train_emb = torch.cat(
+        #     [self.train_emb, embeds], dim=0) if self.train_emb is not None else embeds
+        # self.train_labels = torch.cat(
+        #     [self.train_labels, labels], dim=0) if self.train_labels is not None else labels
 
-        # if isinstance(embeds, torch.Tensor):
-        #     hidden = embeds.shape[1] // 2
-        #     embeds = (embeds[:, :hidden], embeds[:, hidden:])
-        # if self.precision_k is not None:
-        #     prec_dict = precision_at_k(embeds, labels, self.precision_k)
-        #     log_dict = {f"train/precision@{k}": prec_dict[k] for k in prec_dict.keys()}
-        #     self.log_dict(log_dict, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        if isinstance(embeds, torch.Tensor):
+            hidden = embeds.shape[1] // 2
+            embeds = (embeds[:, :hidden], embeds[:, hidden:])
+        if self.precision_k is not None:
+            prec_dict = precision_at_k(embeds, labels, self.precision_k)
+            log_dict = {f"train/precision@{k}": prec_dict[k] for k in prec_dict.keys()}
+            self.log_dict(log_dict, prog_bar=True, logger=True, on_step=True, on_epoch=True)
 
-        # if self.recall_k is not None:
-        #     recall_dict = recall_at_k(embeds, labels, self.recall_k)
-        #     log_dict = {f"train/recall@{k}": recall_dict[k] for k in recall_dict.keys()}
-        #     self.log_dict(log_dict, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        if self.recall_k is not None:
+            recall_dict = recall_at_k(embeds, labels, self.recall_k)
+            log_dict = {f"train/recall@{k}": recall_dict[k] for k in recall_dict.keys()}
+            self.log_dict(log_dict, prog_bar=True, logger=True, on_step=True, on_epoch=True)
 
         loss_dict = {"train/loss": loss}
         self.log_dict(loss_dict, prog_bar=True, logger=True, on_step=True, on_epoch=True)
@@ -340,20 +340,20 @@ class KLLossMetricLearning(pl.LightningModule):
 
         return loss
 
-    def on_train_epoch_end(self) -> None:
-        if isinstance(self.train_emb, torch.Tensor):
-            hidden = self.train_emb.shape[1] // 2
-            self.train_emb = (self.train_emb[:, :hidden], self.train_emb[:, hidden:])
-        prec_dict = precision_at_k(self.train_emb, self.train_labels, self.precision_k)
-        log_dict = {f"train/precision@{k}": prec_dict[k] for k in prec_dict.keys()}
-        self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+    # def on_train_epoch_end(self) -> None:
+    #     if isinstance(self.train_emb, torch.Tensor):
+    #         hidden = self.train_emb.shape[1] // 2
+    #         self.train_emb = (self.train_emb[:, :hidden], self.train_emb[:, hidden:])
+    #     prec_dict = precision_at_k(self.train_emb, self.train_labels, self.precision_k)
+    #     log_dict = {f"train/precision@{k}": prec_dict[k] for k in prec_dict.keys()}
+    #     self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
 
-        recall_dict = recall_at_k(self.train_emb, self.train_labels, self.recall_k)
-        log_dict = {f"train/recall@{k}": recall_dict[k] for k in recall_dict.keys()}
-        self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+    #     recall_dict = recall_at_k(self.train_emb, self.train_labels, self.recall_k)
+    #     log_dict = {f"train/recall@{k}": recall_dict[k] for k in recall_dict.keys()}
+    #     self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
 
-        self.train_emb = None
-        self.train_labels = None
+    #     self.train_emb = None
+    #     self.train_labels = None
 
     def validation_step(self, batch, batch_idx) -> STEP_OUTPUT:
         imgs = batch[self.img_key]
@@ -363,44 +363,44 @@ class KLLossMetricLearning(pl.LightningModule):
         loss = self.batch_handler(
             embeds, labels, self.exp_class_distance, self.regularization_ratio, **self.bh_kwargs)
 
-        self.val_emb = torch.cat(
-            [self.val_emb, embeds], dim=0) if self.val_emb is not None else embeds
-        self.val_labels = torch.cat(
-            [self.val_labels, labels], dim=0) if self.val_labels is not None else labels
+        # self.val_emb = torch.cat(
+        #     [self.val_emb, embeds], dim=0) if self.val_emb is not None else embeds
+        # self.val_labels = torch.cat(
+        #     [self.val_labels, labels], dim=0) if self.val_labels is not None else labels
 
-        # if isinstance(embeds, torch.Tensor):
-        #     hidden = embeds.shape[1] // 2
-        #     embeds = (embeds[:, :hidden], embeds[:, hidden:])
+        if isinstance(embeds, torch.Tensor):
+            hidden = embeds.shape[1] // 2
+            embeds = (embeds[:, :hidden], embeds[:, hidden:])
 
-        # if self.precision_k is not None:
-        #     prec_dict = precision_at_k(embeds, labels, self.precision_k)
-        #     log_dict = {f"val/precision@{k}": prec_dict[k] for k in prec_dict.keys()}
-        #     self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+        if self.precision_k is not None:
+            prec_dict = precision_at_k(embeds, labels, self.precision_k)
+            log_dict = {f"val/precision@{k}": prec_dict[k] for k in prec_dict.keys()}
+            self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
 
-        # if self.recall_k is not None:
-        #     recall_dict = recall_at_k(embeds, labels, self.recall_k)
-        #     log_dict = {f"val/recall@{k}": recall_dict[k] for k in recall_dict.keys()}
-        #     self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+        if self.recall_k is not None:
+            recall_dict = recall_at_k(embeds, labels, self.recall_k)
+            log_dict = {f"val/recall@{k}": recall_dict[k] for k in recall_dict.keys()}
+            self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
 
         loss_dict = {"val/loss": loss}
         self.log_dict(loss_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
 
         return loss
 
-    def on_validation_epoch_end(self) -> None:
-        if isinstance(self.val_emb, torch.Tensor):
-            hidden = self.val_emb.shape[1] // 2
-            self.val_emb = (self.val_emb[:, :hidden], self.val_emb[:, hidden:])
-        prec_dict = precision_at_k(self.val_emb, self.val_labels, self.precision_k)
-        log_dict = {f"val/precision@{k}": prec_dict[k] for k in prec_dict.keys()}
-        self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+    # def on_validation_epoch_end(self) -> None:
+    #     if isinstance(self.val_emb, torch.Tensor):
+    #         hidden = self.val_emb.shape[1] // 2
+    #         self.val_emb = (self.val_emb[:, :hidden], self.val_emb[:, hidden:])
+    #     prec_dict = precision_at_k(self.val_emb, self.val_labels, self.precision_k)
+    #     log_dict = {f"val/precision@{k}": prec_dict[k] for k in prec_dict.keys()}
+    #     self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
 
-        recall_dict = recall_at_k(self.val_emb, self.val_labels, self.recall_k)
-        log_dict = {f"val/recall@{k}": recall_dict[k] for k in recall_dict.keys()}
-        self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+    #     recall_dict = recall_at_k(self.val_emb, self.val_labels, self.recall_k)
+    #     log_dict = {f"val/recall@{k}": recall_dict[k] for k in recall_dict.keys()}
+    #     self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
 
-        self.val_emb = None
-        self.val_labels = None
+    #     self.val_emb = None
+    #     self.val_labels = None
 
     def forward(self, imgs: torch.Tensor) -> tuple:
         """
