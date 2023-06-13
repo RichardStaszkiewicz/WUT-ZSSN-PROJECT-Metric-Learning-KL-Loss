@@ -13,8 +13,8 @@ from model.model import KLDistance, KL_d, KLoss, KLLossMetricLearning
 
 
 if __name__ == "__main__":
-    IMAGE_SIZE = 224
-    BATCH_SIZE = 64
+    IMAGE_SIZE = 64
+    BATCH_SIZE = 256
 
     train_transform = transforms.Compose([
         # transforms.RandomHorizontalFlip(p=0.5),
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     cub_testloader = torch.utils.data.DataLoader(cub_testset, batch_size=BATCH_SIZE,
                                               shuffle=False, drop_last=True)
 
-    conf_path = path.join("configs", "model_cub.yaml")
+    conf_path = path.join("configs", "model_cub64.yaml")
     conf = OmegaConf.load(conf_path)
     model = KLLossMetricLearning(**conf.get("model"))
 
