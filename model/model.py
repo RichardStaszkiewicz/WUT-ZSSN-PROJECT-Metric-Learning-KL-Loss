@@ -224,11 +224,11 @@ class KLoss(losses.BaseMetricLossFunction):
         while negative_count > neg:
             positive_count = positive_count - 1
             negative_count = int(positive_count // ratio)
-        if negative_count == 0 and positive_count == 0:
-            if pos > neg:
-                positive_count = pos
-            else:
-                negative_count = neg
+        # if negative_count == 0 and positive_count == 0:
+        #     if pos > neg:
+        #         positive_count = pos
+        #     else:
+        #         negative_count = neg
         return positive_count, negative_count
 
     def compute_loss(self, embeddings, labels, indices_tuple, ref_emb, ref_labels):
@@ -236,24 +236,24 @@ class KLoss(losses.BaseMetricLossFunction):
             len(indices_tuple[0]), len(indices_tuple[2]), self.pos_negative_ratio)
         loss = torch.tensor(0, dtype=float, device=embeddings[0].device)
         pivot = len(embeddings[0]) // 2
-        if positive_count > 0:
-            loss += loss_same_class(
-                emb1=(embeddings[indices_tuple[0][:positive_count]][:, :pivot],
-                      embeddings[indices_tuple[0][:positive_count]][:, pivot:]),
-                emb2=(embeddings[indices_tuple[1][:positive_count]][:, :pivot],
-                      embeddings[indices_tuple[1][:positive_count]][:, pivot:]),
-                alpha=self.alpha,
-                m=self.m
-            )
-        if negative_count > 0:
-            loss += loss_different_class(
-                emb1=(embeddings[indices_tuple[2][:negative_count]][:, :pivot],
-                      embeddings[indices_tuple[2][:negative_count]][:, pivot:]),
-                emb2=(embeddings[indices_tuple[3][:negative_count]][:, :pivot],
-                      embeddings[indices_tuple[3][:negative_count]][:, pivot:]),
-                alpha=self.alpha,
-                m=self.m
-            )
+        # if positive_count > 0:
+        loss += loss_same_class(
+            emb1=(embeddings[indices_tuple[0][:positive_count]][:, :pivot],
+                    embeddings[indices_tuple[0][:positive_count]][:, pivot:]),
+            emb2=(embeddings[indices_tuple[1][:positive_count]][:, :pivot],
+                    embeddings[indices_tuple[1][:positive_count]][:, pivot:]),
+            alpha=self.alpha,
+            m=self.m
+        )
+        # if negative_count > 0:
+        loss += loss_different_class(
+            emb1=(embeddings[indices_tuple[2][:negative_count]][:, :pivot],
+                    embeddings[indices_tuple[2][:negative_count]][:, pivot:]),
+            emb2=(embeddings[indices_tuple[3][:negative_count]][:, :pivot],
+                    embeddings[indices_tuple[3][:negative_count]][:, pivot:]),
+            alpha=self.alpha,
+            m=self.m
+        )
         return {
             'loss': {
                 'losses': loss,
