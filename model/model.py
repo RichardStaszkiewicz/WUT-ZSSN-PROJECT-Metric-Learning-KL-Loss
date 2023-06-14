@@ -223,7 +223,7 @@ class KLoss(losses.BaseMetricLossFunction):
         positive_count = int(negative_count * ratio)
         while negative_count > neg:
             positive_count = positive_count - 1
-            negative_count = positive_count // ratio
+            negative_count = int(positive_count // ratio)
         if negative_count == 0 and positive_count == 0:
             if pos > neg:
                 positive_count = pos
