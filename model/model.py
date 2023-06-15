@@ -224,11 +224,6 @@ class KLoss(losses.BaseMetricLossFunction):
         while negative_count > neg:
             positive_count = positive_count - 1
             negative_count = int(positive_count // ratio)
-        if negative_count == 0 and positive_count == 0:
-            if pos > neg:
-                positive_count = 1
-            else:
-                negative_count = 1
         return positive_count, negative_count
 
     def compute_loss(self, embeddings, labels, indices_tuple, ref_emb, ref_labels):
@@ -236,6 +231,13 @@ class KLoss(losses.BaseMetricLossFunction):
             len(indices_tuple[0]), len(indices_tuple[2]), self.pos_negative_ratio)
         loss = torch.tensor(0, dtype=float, device=embeddings[0].device)
         pivot = len(embeddings[0]) // 2
+        zero_loss = False
+        if positive_count == 0 and negative_count == 0:
+            zero_loss = True
+            if len(indices_tuple[0]) > len(indices_tuple[2]):
+                positive_count = 1
+            else:
+                negative_count = 1
         if positive_count > 0:
             loss += loss_same_class(
                 emb1=(embeddings[indices_tuple[0][:positive_count]][:, :pivot],
@@ -254,6 +256,8 @@ class KLoss(losses.BaseMetricLossFunction):
                 alpha=self.alpha,
                 m=self.m
             )
+        if zero_loss:
+            loss *= 0
         return {
             'loss': {
                 'losses': loss,
