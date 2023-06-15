@@ -8,13 +8,15 @@ import torchvision.transforms as transforms
 from datetime import datetime
 from data_utils import cub2011
 from data_utils import stanford_cars
-from pytorch_metric_learning import miners, losses
+from pytorch_metric_learning import miners, losses, samplers
 from model.model import KLDistance, KL_d, KLoss, KLLossMetricLearning
+import torchvision as tv
+import wandb
 
 
 if __name__ == "__main__":
     IMAGE_SIZE = 64
-    BATCH_SIZE = 256
+    BATCH_SIZE = 60
 
     train_transform = transforms.Compose([
         # transforms.RandomHorizontalFlip(p=0.5),
@@ -37,79 +39,109 @@ if __name__ == "__main__":
 
     # cars_trainset = stanford_cars.download_cars('./data', train=True, download=True, transforms=train_transform)
     # cars_testset = stanford_cars.download_cars('./data', train=True, download=False, transforms=transform)
-    cub_trainset = cub2011.download_cub('./data', train=True, download=True, transforms=train_transform)
-    cub_testset = cub2011.download_cub('./data', train=False, download=False, transforms=transform)
+    # cub_trainset = cub2011.download_cub('./data', train=True, download=True, transforms=train_transform)
+    # cub_testset = cub2011.download_cub('./data', train=False, download=False, transforms=transform)
+    fashion_train = tv.datasets.FashionMNIST("./data", train=True, transform=transforms.ToTensor(), download=True)
+    fashion_test = tv.datasets.FashionMNIST("./data", train=False, transform=transforms.ToTensor(), download=True)
+    # cifar10_train = tv.datasets.CIFAR10("./data", train=True, transform=transforms.ToTensor(), download=True)
+    # cifar10_test = tv.datasets.CIFAR10("./data", train=False, transform=transforms.ToTensor(), download=True)
 
     # cars_trainloader = torch.utils.data.DataLoader(cars_trainset, batch_size=BATCH_SIZE,
     #                                           shuffle=True, drop_last=True)
     # cars_testloader = torch.utils.data.DataLoader(cars_testset, batch_size=BATCH_SIZE,
     #                                           shuffle=False, drop_last=True)
-    cub_trainloader = torch.utils.data.DataLoader(cub_trainset, batch_size=BATCH_SIZE,
-                                              shuffle=True, drop_last=True)
-    cub_testloader = torch.utils.data.DataLoader(cub_testset, batch_size=BATCH_SIZE,
-                                              shuffle=False, drop_last=True)
+    # cub_trainloader = torch.utils.data.DataLoader(cub_trainset, batch_size=BATCH_SIZE,
+    #                                               shuffle=True, drop_last=False,)# sampler=samplers.MPerClassSampler(cub_trainset.label_list, m=8, length_before_new_iter=len(cub_trainset)))
+    # cub_testloader = torch.utils.data.DataLoader(cub_testset, batch_size=BATCH_SIZE,
+    #                                              shuffle=False, drop_last=False,)#sampler=samplers.MPerClassSampler(cub_testset.label_list, m=2, length_before_new_iter=len(cub_testset)))
+    # cub_testloader2 = torch.utils.data.DataLoader(cub_testset, batch_size=BATCH_SIZE,
+    #                                               shuffle=False, drop_last=False)
+    fashion_trainloader = torch.utils.data.DataLoader(fashion_train, batch_size=BATCH_SIZE,
+                                                      shuffle=False, drop_last=True, sampler=samplers.MPerClassSampler(fashion_train.classes, m=6, length_before_new_iter=18000))
+    fashion_testloader = torch.utils.data.DataLoader(fashion_test, batch_size=BATCH_SIZE,
+                                                     shuffle=False, drop_last=True, sampler=samplers.MPerClassSampler(fashion_test.classes, m=6, length_before_new_iter=len(fashion_train)))
+    fashion_testloader2 = torch.utils.data.DataLoader(fashion_test, batch_size=BATCH_SIZE,
+                                                      shuffle=False, drop_last=True)
+    # cifar10_trainloader = torch.utils.data.DataLoader(cifar10_train, batch_size=BATCH_SIZE,
+    #                                                   shuffle=False, drop_last=True, sampler=samplers.MPerClassSampler(cifar10_train.classes, m=6, length_before_new_iter=len(cifar10_train)))
+    # cifar10_testloader = torch.utils.data.DataLoader(cifar10_test, batch_size=BATCH_SIZE,
+    #                                                  shuffle=False, drop_last=True, sampler=samplers.MPerClassSampler(cifar10_test.classes, m=6, length_before_new_iter=len(cifar10_test)))
+    # cifar10_testloader2 = torch.utils.data.DataLoader(cifar10_test, batch_size=BATCH_SIZE,
+    #                                                   shuffle=False, drop_last=True)
 
-    conf_path = path.join("configs", "model_cub64.yaml")
+    conf_path = path.join("configs", "model_fashion.yaml")
     conf = OmegaConf.load(conf_path)
-    model = KLLossMetricLearning(**conf.get("model"))
+    # model = KLLossMetricLearning(**conf.get("model"))
 
-    pl.seed_everything(42)
-    now = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-    nowname = model.__class__.__name__ + "_" + now
-    logdir = path.join("logs", nowname)
-    ckptdir = path.join(logdir, "checkpoints")
-    default_modelckpt_cfg = {
-        "dirpath": ckptdir,
-        "filename": "{epoch:06}",
-        "verbose": True,
-        "save_last": True,
-        "monitor": "val/loss",
-        "save_top_k": 1,
-        # "mode": "max",
-    }
-    callbacks = [pl.callbacks.ModelCheckpoint(**default_modelckpt_cfg)]
-    logger = WandbLogger(
-        project="ZZSN",
-        name=nowname,
-        log_model=True,
-        id=nowname,
-        # group=str(group),
-        reinit=True,
-        allow_val_change=True
-    )
-    trainer = pl.Trainer(logger=logger, callbacks=callbacks, max_epochs=100)
-    trainer.fit(
-        model, train_dataloaders=cub_trainloader, val_dataloaders=cub_testloader
-    )
-    trainer.test(model, cub_testloader)
-    # means = torch.Tensor([
-    #     [3, 0, 3],
-    #     [2, 0, 2],
-    #     [7, 3, 2],
-    #     [3, 2, 1]
-    # ])
-    # stds = torch.Tensor([
-    #     [0.2, 0.3, 0.1],
-    #     [0.3, 0.1, 2],
-    #     [0.1, 0.1, 0.1],
-    #     [0.2, 0.3, 0.5]
-    # ])
-    # labels = torch.Tensor(
-    #     [2, 2, 3, 3]
+    # ckpt_path = path.join("logs", "KLLossMetricLearning_2023-06-14T12-29-11", "checkpoints", "last.ckpt")
+    # state_dict = torch.load(ckpt_path)
+    # model.load_state_dict(state_dict["state_dict"])
+
+    # pl.seed_everything(42)
+    # now = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    # nowname = model.__class__.__name__ + "_" + now
+    # logdir = path.join("logs", nowname)
+    # ckptdir = path.join(logdir, "checkpoints")
+    # default_modelckpt_cfg = {
+    #     "dirpath": ckptdir,
+    #     "filename": "{epoch:06}",
+    #     "verbose": True,
+    #     "save_last": True,
+    #     "monitor": "val/loss",
+    #     "save_top_k": 1,
+    #     # "mode": "max",
+    # }
+    # callbacks = [pl.callbacks.ModelCheckpoint(**default_modelckpt_cfg)]
+    # logger = WandbLogger(
+    #     project="ZZSN",
+    #     name=nowname,
+    #     log_model=True,
+    #     id=nowname,
+    #     # group=str(group),
+    #     reinit=True,
+    #     allow_val_change=True
     # )
-    # emb = torch.cat((means.unsqueeze(2), stds.unsqueeze(2)), dim=2)
-    # m1, s1 = (emb[0].T[0], emb[0].T[1])
-    # m2, s2 = (emb[1].T[0], emb[1].T[1])
-    # print((m1, s1))
-    # print((m2, s2))
-    # print(KL_d((m1, s1), (m2, s2)))
-    # emb size = [batch size, no. output dims, 2 (for each dim mean and std)]
-    # labels = [batch size]
+    # trainer = pl.Trainer(logger=logger, callbacks=callbacks, max_epochs=100)
+    # trainer.fit(
+    #     model, train_dataloaders=fashion_trainloader, val_dataloaders=fashion_testloader2
+    # )
+    # trainer.test(model, fashion_testloader2)
 
+    for exp_dist in [1, 5, 10]:
+        for reg_ratio in [0.00001, 0.01, 0.2]:
+            for pos_neg in [0.05, 0.5, 1]:
+                conf["model"]["exp_class_distance"] = exp_dist
+                conf["model"]["regularization_ratio"] = reg_ratio
+                conf["model"]["bh_kwargs"]["pos_neg_ratio"] = pos_neg
+                model = KLLossMetricLearning(**conf.get("model"))
 
-    # miner_func = miners.PairMarginMiner(pos_margin=0.2, neg_margin=0.8, distance=KLDistance())
-    # emb2 = torch.cat((means, stds), dim=1)
-    # miner_output = miner_func(emb2, labels)
-    # loss_func = KLoss(distance=KLDistance(), exp_class_distance=0.5, regularization_ratio=0.5, pos_negative_ratio=1)
-    # print(loss_func.compute_loss(emb2, labels, miner_output, emb2, labels)['loss']['losses'])
-    # print(loss_func(emb2, labels, miner_output))
+                pl.seed_everything(42)
+                now = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+                nowname = model.__class__.__name__ + "_" + now
+                logdir = path.join("logs", nowname)
+                ckptdir = path.join(logdir, "checkpoints")
+                default_modelckpt_cfg = {
+                    "dirpath": ckptdir,
+                    "filename": "{epoch:06}",
+                    "verbose": True,
+                    "save_last": True,
+                    "monitor": "val/loss",
+                    "save_top_k": 1,
+                    # "mode": "max",
+                }
+                callbacks = [pl.callbacks.ModelCheckpoint(**default_modelckpt_cfg)]
+                logger = WandbLogger(
+                    project="ZZSN",
+                    name=nowname,
+                    log_model=True,
+                    id=nowname,
+                    # group=str(group),
+                    reinit=True,
+                    allow_val_change=True
+                )
+                trainer = pl.Trainer(logger=logger, callbacks=callbacks, max_epochs=10)
+                trainer.fit(
+                    model, train_dataloaders=fashion_trainloader, val_dataloaders=fashion_testloader2
+                )
+                trainer.test(model, fashion_testloader2)
+                wandb.finish()
