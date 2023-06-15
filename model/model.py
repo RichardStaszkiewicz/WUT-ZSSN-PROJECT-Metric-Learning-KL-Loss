@@ -224,11 +224,11 @@ class KLoss(losses.BaseMetricLossFunction):
         while negative_count > neg:
             positive_count = positive_count - 1
             negative_count = int(positive_count // ratio)
-        # if negative_count == 0 and positive_count == 0:
-        #     if pos > neg:
-        #         positive_count = pos
-        #     else:
-        #         negative_count = neg
+        if negative_count == 0 and positive_count == 0:
+            if pos > neg:
+                positive_count = 1
+            else:
+                negative_count = 1
         return positive_count, negative_count
 
     def compute_loss(self, embeddings, labels, indices_tuple, ref_emb, ref_labels):
@@ -236,24 +236,24 @@ class KLoss(losses.BaseMetricLossFunction):
             len(indices_tuple[0]), len(indices_tuple[2]), self.pos_negative_ratio)
         loss = torch.tensor(0, dtype=float, device=embeddings[0].device)
         pivot = len(embeddings[0]) // 2
-        # if positive_count > 0:
-        loss += loss_same_class(
-            emb1=(embeddings[indices_tuple[0][:positive_count]][:, :pivot],
-                    embeddings[indices_tuple[0][:positive_count]][:, pivot:]),
-            emb2=(embeddings[indices_tuple[1][:positive_count]][:, :pivot],
-                    embeddings[indices_tuple[1][:positive_count]][:, pivot:]),
-            alpha=self.alpha,
-            m=self.m
-        )
-        # if negative_count > 0:
-        loss += loss_different_class(
-            emb1=(embeddings[indices_tuple[2][:negative_count]][:, :pivot],
-                    embeddings[indices_tuple[2][:negative_count]][:, pivot:]),
-            emb2=(embeddings[indices_tuple[3][:negative_count]][:, :pivot],
-                    embeddings[indices_tuple[3][:negative_count]][:, pivot:]),
-            alpha=self.alpha,
-            m=self.m
-        )
+        if positive_count > 0:
+            loss += loss_same_class(
+                emb1=(embeddings[indices_tuple[0][:positive_count]][:, :pivot],
+                        embeddings[indices_tuple[0][:positive_count]][:, pivot:]),
+                emb2=(embeddings[indices_tuple[1][:positive_count]][:, :pivot],
+                        embeddings[indices_tuple[1][:positive_count]][:, pivot:]),
+                alpha=self.alpha,
+                m=self.m
+            )
+        if negative_count > 0:
+            loss += loss_different_class(
+                emb1=(embeddings[indices_tuple[2][:negative_count]][:, :pivot],
+                        embeddings[indices_tuple[2][:negative_count]][:, pivot:]),
+                emb2=(embeddings[indices_tuple[3][:negative_count]][:, :pivot],
+                        embeddings[indices_tuple[3][:negative_count]][:, pivot:]),
+                alpha=self.alpha,
+                m=self.m
+            )
         return {
             'loss': {
                 'losses': loss,
@@ -303,10 +303,11 @@ class KLLossMetricLearning(pl.LightningModule):
 
         # self.train_emb = None
         # self.train_labels = None
-        # self.val_emb = None
-        # self.val_labels = None
+        self.val_emb = None
+        self.val_labels = None
         self.test_emb = None
         self.test_labels = None
+        self.save_hyperparameters()
 
     def get_embeds(self, means, stds):
         if self.batch_handling_name == "random_class_pairs":
@@ -370,44 +371,44 @@ class KLLossMetricLearning(pl.LightningModule):
         loss = self.batch_handler(
             embeds, labels, self.exp_class_distance, self.regularization_ratio, **self.bh_kwargs)
 
-        # self.val_emb = torch.cat(
-        #     [self.val_emb, embeds], dim=0) if self.val_emb is not None else embeds
-        # self.val_labels = torch.cat(
-        #     [self.val_labels, labels], dim=0) if self.val_labels is not None else labels
+        self.val_emb = torch.cat(
+            [self.val_emb, embeds], dim=0) if self.val_emb is not None else embeds
+        self.val_labels = torch.cat(
+            [self.val_labels, labels], dim=0) if self.val_labels is not None else labels
 
-        if isinstance(embeds, torch.Tensor):
-            hidden = embeds.shape[1] // 2
-            embeds = (embeds[:, :hidden], embeds[:, hidden:])
+        # if isinstance(embeds, torch.Tensor):
+        #     hidden = embeds.shape[1] // 2
+        #     embeds = (embeds[:, :hidden], embeds[:, hidden:])
 
-        if self.precision_k is not None:
-            prec_dict = precision_at_k(embeds, labels, self.precision_k)
-            log_dict = {f"val/precision@{k}": prec_dict[k] for k in prec_dict.keys()}
-            self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+        # if self.precision_k is not None:
+        #     prec_dict = precision_at_k(embeds, labels, self.precision_k)
+        #     log_dict = {f"val/precision@{k}": prec_dict[k] for k in prec_dict.keys()}
+        #     self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
 
-        if self.recall_k is not None:
-            recall_dict = recall_at_k(embeds, labels, self.recall_k)
-            log_dict = {f"val/recall@{k}": recall_dict[k] for k in recall_dict.keys()}
-            self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+        # if self.recall_k is not None:
+        #     recall_dict = recall_at_k(embeds, labels, self.recall_k)
+        #     log_dict = {f"val/recall@{k}": recall_dict[k] for k in recall_dict.keys()}
+        #     self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
 
         loss_dict = {"val/loss": loss}
         self.log_dict(loss_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
 
         return loss
 
-    # def on_validation_epoch_end(self) -> None:
-    #     if isinstance(self.val_emb, torch.Tensor):
-    #         hidden = self.val_emb.shape[1] // 2
-    #         self.val_emb = (self.val_emb[:, :hidden], self.val_emb[:, hidden:])
-    #     prec_dict = precision_at_k(self.val_emb, self.val_labels, self.precision_k)
-    #     log_dict = {f"val/precision@{k}": prec_dict[k] for k in prec_dict.keys()}
-    #     self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+    def on_validation_epoch_end(self) -> None:
+        if isinstance(self.val_emb, torch.Tensor):
+            hidden = self.val_emb.shape[1] // 2
+            self.val_emb = (self.val_emb[:, :hidden], self.val_emb[:, hidden:])
+        prec_dict = precision_at_k(self.val_emb, self.val_labels, self.precision_k)
+        log_dict = {f"val/precision@{k}": prec_dict[k] for k in prec_dict.keys()}
+        self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
 
-    #     recall_dict = recall_at_k(self.val_emb, self.val_labels, self.recall_k)
-    #     log_dict = {f"val/recall@{k}": recall_dict[k] for k in recall_dict.keys()}
-    #     self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+        recall_dict = recall_at_k(self.val_emb, self.val_labels, self.recall_k)
+        log_dict = {f"val/recall@{k}": recall_dict[k] for k in recall_dict.keys()}
+        self.log_dict(log_dict, prog_bar=True, logger=True, on_step=False, on_epoch=True)
 
-    #     self.val_emb = None
-    #     self.val_labels = None
+        self.val_emb = None
+        self.val_labels = None
 
     def forward(self, imgs: torch.Tensor) -> tuple:
         """
