@@ -422,7 +422,7 @@ class KLLossMetricLearning(pl.LightningModule):
         out = self.mlp(out)
         latent_dim = out.shape[1] // 2
         mean, std = out[:, :latent_dim], out[:, latent_dim:]
-        return mean, torch.nn.functional.relu(std)
+        return mean, std
 
     def test_step(self, batch, batch_idx) -> STEP_OUTPUT:
         imgs = batch[self.img_key]
