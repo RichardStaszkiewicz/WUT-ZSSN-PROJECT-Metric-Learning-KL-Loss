@@ -161,7 +161,7 @@ def pair_margin_miner(embeds: torch.Tensor,
     regularization_ratio = regularization_ratio if regularization_ratio else 0.2
 
     miner_func = miners.PairMarginMiner(
-        pos_margin=0, neg_margin=exp_class_distance, distance=KLDistance())
+        pos_margin=0, neg_margin=10000, distance=KLDistance()) # 10000 - a very big number to always get some negative pairs
     loss_func = KLoss(distance=KLDistance(),
                       exp_class_distance=exp_class_distance,
                       regularization_ratio=regularization_ratio,
