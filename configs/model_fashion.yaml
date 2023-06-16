@@ -1,19 +1,16 @@
-# exp_class_distance = {1, 5, 10}
-# regularization_ratio = {0.00001, 0.01, 0.2}
-# pos_neg_ratio = {0.05, 0.5, 1}
 model:
-  exp_class_distance: 1
-  regularization_ratio: 0.00001
+  exp_class_distance: 4
+  regularization_ratio: 0.0000001
   batch_handling: "pair_margin_miner"
   bh_kwargs:
-    pos_neg_ratio: 0.05
+    pos_neg_ratio: 1
   resnet_config:
     first_conv:
-      in_channels: 3
+      in_channels: 1
       out_channels: 64
-      kernel_size: 5
+      kernel_size: 3
       stride: 2
-      padding: 3
+      padding: 2
     block_list: [
       {
         in_channels: 64,
@@ -42,35 +39,21 @@ model:
         kernel_size: 3,
         stride: 2,
         padding: 1,
-      },
-      {
-        in_channels: 256,
-        out_channels: 256,
-        kernel_size: 3,
-        stride: 1,
-        padding: "same",
-      },
-      {
-        in_channels: 256,
-        out_channels: 512,
-        kernel_size: 3,
-        stride: 2,
-        padding: 1,
-      },
+      }
     ]
     pool_size: 2
   mlp_config:
     block_list: [
       {
-        in_size: 2048,
-        out_size: 1024,
+        in_size: 1024,
+        out_size: 512,
         activation_fun: "relu",
         batch_norm: True,
         dropout: 0.0
       },
       {
-        in_size: 1024,
-        out_size: 256,
+        in_size: 512,
+        out_size: 128,
         activation_fun: "none",
         batch_norm: False,
         dropout: 0.0
@@ -79,5 +62,5 @@ model:
   lr: 1.0e-3
   img_key: 0
   class_key: 1
-  precision_k: [2]
-  recall_k: [1, 2]
+  precision_k: [2, 5]
+  recall_k: [1, 2, 5]

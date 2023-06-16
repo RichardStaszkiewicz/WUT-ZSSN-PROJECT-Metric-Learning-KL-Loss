@@ -15,7 +15,7 @@ import wandb
 
 
 if __name__ == "__main__":
-    IMAGE_SIZE = 64
+    IMAGE_SIZE = 224
     BATCH_SIZE = 60
 
     train_transform = transforms.Compose([
@@ -38,38 +38,37 @@ if __name__ == "__main__":
     ])
 
     # cars_trainset = stanford_cars.download_cars('./data', train=True, download=True, transforms=train_transform)
-    # cars_testset = stanford_cars.download_cars('./data', train=True, download=False, transforms=transform)
+    # cars_testset = stanford_cars.download_cars('./data', train=False, download=True, transforms=transform)
     # cub_trainset = cub2011.download_cub('./data', train=True, download=True, transforms=train_transform)
     # cub_testset = cub2011.download_cub('./data', train=False, download=False, transforms=transform)
-    fashion_train = tv.datasets.FashionMNIST("./data", train=True, transform=transforms.ToTensor(), download=True)
-    fashion_test = tv.datasets.FashionMNIST("./data", train=False, transform=transforms.ToTensor(), download=True)
-    # cifar10_train = tv.datasets.CIFAR10("./data", train=True, transform=transforms.ToTensor(), download=True)
-    # cifar10_test = tv.datasets.CIFAR10("./data", train=False, transform=transforms.ToTensor(), download=True)
+    # fashion_train = tv.datasets.FashionMNIST("./data", train=True, transform=transforms.ToTensor(), download=True)
+    # fashion_test = tv.datasets.FashionMNIST("./data", train=False, transform=transforms.ToTensor(), download=True)
+    cifar10_train = tv.datasets.CIFAR10("./data", train=True, transform=transforms.ToTensor(), download=True)
+    cifar10_test = tv.datasets.CIFAR10("./data", train=False, transform=transforms.ToTensor(), download=True)
 
     # cars_trainloader = torch.utils.data.DataLoader(cars_trainset, batch_size=BATCH_SIZE,
-    #                                           shuffle=True, drop_last=True)
+    #                                       shuffle=False, drop_last=True, sampler=samplers.MPerClassSampler([label for _, label in cars_trainset.imgs], m=2, length_before_new_iter=len(cars_trainset)))
     # cars_testloader = torch.utils.data.DataLoader(cars_testset, batch_size=BATCH_SIZE,
-    #                                           shuffle=False, drop_last=True)
+    #                                       shuffle=False, drop_last=True)
     # cub_trainloader = torch.utils.data.DataLoader(cub_trainset, batch_size=BATCH_SIZE,
-    #                                               shuffle=True, drop_last=False,)# sampler=samplers.MPerClassSampler(cub_trainset.label_list, m=8, length_before_new_iter=len(cub_trainset)))
+    #                                               shuffle=False, drop_last=False, sampler=samplers.MPerClassSampler(cub_trainset.label_list, m=4, length_before_new_iter=len(cub_trainset)))
     # cub_testloader = torch.utils.data.DataLoader(cub_testset, batch_size=BATCH_SIZE,
-    #                                              shuffle=False, drop_last=False,)#sampler=samplers.MPerClassSampler(cub_testset.label_list, m=2, length_before_new_iter=len(cub_testset)))
+    #                                              shuffle=False, drop_last=False, sampler=samplers.MPerClassSampler(cub_testset.label_list, m=2, length_before_new_iter=len(cub_testset)))
     # cub_testloader2 = torch.utils.data.DataLoader(cub_testset, batch_size=BATCH_SIZE,
     #                                               shuffle=False, drop_last=False)
-    fashion_trainloader = torch.utils.data.DataLoader(fashion_train, batch_size=BATCH_SIZE,
-                                                      shuffle=False, drop_last=True, sampler=samplers.MPerClassSampler(fashion_train.classes, m=6, length_before_new_iter=18000))
-    fashion_testloader = torch.utils.data.DataLoader(fashion_test, batch_size=BATCH_SIZE,
-                                                     shuffle=False, drop_last=True, sampler=samplers.MPerClassSampler(fashion_test.classes, m=6, length_before_new_iter=len(fashion_train)))
-    fashion_testloader2 = torch.utils.data.DataLoader(fashion_test, batch_size=BATCH_SIZE,
-                                                      shuffle=False, drop_last=True)
-    # cifar10_trainloader = torch.utils.data.DataLoader(cifar10_train, batch_size=BATCH_SIZE,
-    #                                                   shuffle=False, drop_last=True, sampler=samplers.MPerClassSampler(cifar10_train.classes, m=6, length_before_new_iter=len(cifar10_train)))
-    # cifar10_testloader = torch.utils.data.DataLoader(cifar10_test, batch_size=BATCH_SIZE,
-    #                                                  shuffle=False, drop_last=True, sampler=samplers.MPerClassSampler(cifar10_test.classes, m=6, length_before_new_iter=len(cifar10_test)))
-    # cifar10_testloader2 = torch.utils.data.DataLoader(cifar10_test, batch_size=BATCH_SIZE,
+    # fashion_trainloader = torch.utils.data.DataLoader(fashion_train, batch_size=BATCH_SIZE,
+    #                                                   shuffle=False, drop_last=True, sampler=samplers.MPerClassSampler(fashion_train.targets, m=6, length_before_new_iter=12000))
+    # fashion_testloader = torch.utils.data.DataLoader(fashion_test, batch_size=BATCH_SIZE,
+    #                                                  shuffle=False, drop_last=True)
     #                                                   shuffle=False, drop_last=True)
+    cifar10_trainloader = torch.utils.data.DataLoader(cifar10_train, batch_size=BATCH_SIZE,
+                                                      shuffle=False, drop_last=True, sampler=samplers.MPerClassSampler(cifar10_train.targets, m=6, length_before_new_iter=18000))
+    cifar10_testloader = torch.utils.data.DataLoader(cifar10_test, batch_size=BATCH_SIZE,
+                                                     shuffle=False, drop_last=True, sampler=samplers.MPerClassSampler(cifar10_test.targets, m=6, length_before_new_iter=len(cifar10_test)))
+    cifar10_testloader2 = torch.utils.data.DataLoader(cifar10_test, batch_size=BATCH_SIZE,
+                                                      shuffle=False, drop_last=True)
 
-    conf_path = path.join("configs", "model_fashion.yaml")
+    conf_path = path.join("configs", "model_cifar10.yaml")
     conf = OmegaConf.load(conf_path)
     # model = KLLossMetricLearning(**conf.get("model"))
 
@@ -107,13 +106,17 @@ if __name__ == "__main__":
     # )
     # trainer.test(model, fashion_testloader2)
 
-    for exp_dist in [1, 5, 10]:
-        for reg_ratio in [0.00001, 0.01, 0.2]:
-            for pos_neg in [0.05, 0.5, 1]:
+    for exp_dist in [1]:
+        for reg_ratio in [0.001, 0.02, 1]:
+            for pos_neg in [0.05, 1]:
                 conf["model"]["exp_class_distance"] = exp_dist
                 conf["model"]["regularization_ratio"] = reg_ratio
                 conf["model"]["bh_kwargs"]["pos_neg_ratio"] = pos_neg
                 model = KLLossMetricLearning(**conf.get("model"))
+
+                # ckpt_path = path.join("logs", "model1.ckpt")
+                # state_dict = torch.load(ckpt_path)
+                # model.load_state_dict(state_dict["state_dict"])
 
                 pl.seed_everything(42)
                 now = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
@@ -135,13 +138,13 @@ if __name__ == "__main__":
                     name=nowname,
                     log_model=True,
                     id=nowname,
-                    # group=str(group),
+                    group="CIFAR10-v2",
                     reinit=True,
                     allow_val_change=True
                 )
                 trainer = pl.Trainer(logger=logger, callbacks=callbacks, max_epochs=10)
                 trainer.fit(
-                    model, train_dataloaders=fashion_trainloader, val_dataloaders=fashion_testloader2
+                    model, train_dataloaders=cifar10_trainloader, val_dataloaders=cifar10_testloader2
                 )
-                trainer.test(model, fashion_testloader2)
+                trainer.test(model, cifar10_testloader2)
                 wandb.finish()
